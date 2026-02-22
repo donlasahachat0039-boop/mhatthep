@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, products } from "../drizzle/schema";
+import { InsertUser, InsertProduct, users, products } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,6 +89,7 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+// Products Queries
 export async function getAllProducts() {
   const db = await getDb();
   if (!db) {
@@ -121,4 +122,50 @@ export async function getProductById(id: number) {
   }
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function createProduct(data: InsertProduct) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot create product: database not available");
+    throw new Error("Database not available");
+  }
+
+  try {
+    const result = await db.insert(products).values(data);
+    return result;
+  } catch (error) {
+    console.error("[Database] Failed to create product:", error);
+    throw error;
+  }
+}
+
+export async function updateProduct(id: number, data: Partial<InsertProduct>) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot update product: database not available");
+    throw new Error("Database not available");
+  }
+
+  try {
+    const result = await db.update(products).set(data).where(eq(products.id, id));
+    return result;
+  } catch (error) {
+    console.error("[Database] Failed to update product:", error);
+    throw error;
+  }
+}
+
+export async function deleteProduct(id: number) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot delete product: database not available");
+    throw new Error("Database not available");
+  }
+
+  try {
+    const result = await db.delete(products).where(eq(products.id, id));
+    return result;
+  } catch (error) {
+    console.error("[Database] Failed to delete product:", error);
+    throw error;
+  }
+}
