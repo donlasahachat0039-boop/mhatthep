@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1771801310256,
+      "tag": "0000_massive_leech",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1771801613704,
+      "tag": "0001_burly_preak",
+      "breakpoints": true
+    }
+  ]
+}

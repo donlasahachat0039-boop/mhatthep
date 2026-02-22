@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /*.json$
+Disallow: /*?*sort=
+Disallow: /*?*filter=
+
+Sitemap: https://เอ็มหัตถ์เทพ.com/sitemap.xml
+
+# Google
+User-agent: Googlebot
+Allow: /
+
+# Bing
+User-agent: Bingbot
+Allow: /
