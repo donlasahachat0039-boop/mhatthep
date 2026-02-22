@@ -1,65 +1,21 @@
 import { useState } from "react";
+import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { trpc } from "@/lib/trpc";
-import { Loader2, Trash2, Edit2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { Trash2, Edit2, Plus } from "lucide-react";
+
+const ADMIN_PASSWORD = "admin123";
 
 export default function Admin() {
-  const [password, setPassword] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [adminPassword] = useState("admin123"); // ควรใช้ environment variable
-
-  const handleLogin = () => {
-    if (password === adminPassword) {
-      setIsAuthenticated(true);
-      setPassword("");
-    } else {
-      alert("รหัสผ่านไม่ถูกต้อง");
-    }
-  };
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="bg-card rounded-lg shadow-lg p-8">
-            <h1 className="text-3xl font-bold mb-6 text-center gold-accent">
-              Admin Panel
-            </h1>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">รหัสผ่าน</label>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="กรุณาใส่รหัสผ่าน"
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter") {
-                      handleLogin();
-                    }
-                  }}
-                />
-              </div>
-              <Button onClick={handleLogin} className="w-full bg-primary">
-                เข้าสู่ระบบ
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <AdminDashboard />
-  );
-}
-
-function AdminDashboard() {
-  const { data: products, isLoading } = trpc.products.list.useQuery();
-  const [showForm, setShowForm] = useState(false);
+  const [password, setPassword] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [showForm, setShowForm] = useState(false);
+
+  // Form state
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -68,197 +24,382 @@ function AdminDashboard() {
     imageAlt: "",
     status: "available" as const,
     category: "",
-    monk: "",
-    temple: "",
+    monk: "หลวงปู่โต๊ะ",
+    temple: "วัดประดู่ฉิมพลี",
     year: "",
     material: "",
     condition: "",
   });
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
+  // Queries and mutations
+  const { data: products = [] } = trpc.products.list.useQuery();
+  const createMutation = trpc.products.create.useMutation();
+  const updateMutation = trpc.products.update.useMutation();
+  const deleteMutation = trpc.products.delete.useMutation();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Handle login
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement add/edit product logic
-    console.log("Submit form:", formData);
-    setShowForm(false);
-    setFormData({
-      name: "",
-      description: "",
-      price: "",
-      imageUrl: "",
-      imageAlt: "",
-      status: "available",
-      category: "",
-      monk: "",
-      temple: "",
-      year: "",
-      material: "",
-      condition: "",
-    });
+    if (password === ADMIN_PASSWORD) {
+      setIsAuthenticated(true);
+      setPassword("");
+      toast.success("เข้าสู่ระบบสำเร็จ");
+    } else {
+      toast.error("รหัสผ่านไม่ถูกต้อง");
+    }
   };
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-secondary">
-        <div className="container py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold gold-accent">Admin Panel</h1>
-          <Button
-            variant="outline"
-            onClick={() => {
-              // TODO: Implement logout
-            }}
-          >
-            ออกจากระบบ
-          </Button>
-        </div>
-      </header>
+  // Handle form submit
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-      <div className="container py-8">
-        {/* Add Product Button */}
-        <div className="mb-8 flex justify-between items-center">
-          <h2 className="text-3xl font-bold">จัดการพระเครื่อง</h2>
+    try {
+      if (editingId) {
+        await updateMutation.mutateAsync({
+          id: editingId,
+          ...formData,
+        });
+        toast.success("อัปเดตพระเครื่องสำเร็จ");
+      } else {
+        await createMutation.mutateAsync(formData);
+        toast.success("เพิ่มพระเครื่องสำเร็จ");
+      }
+
+      // Reset form
+      setFormData({
+        name: "",
+        description: "",
+        price: "",
+        imageUrl: "",
+        imageAlt: "",
+        status: "available",
+        category: "",
+        monk: "หลวงปู่โต๊ะ",
+        temple: "วัดประดู่ฉิมพลี",
+        year: "",
+        material: "",
+        condition: "",
+      });
+      setEditingId(null);
+      setShowForm(false);
+    } catch (error) {
+      toast.error("เกิดข้อผิดพลาด");
+    }
+  };
+
+  // Handle edit
+  const handleEdit = (product: any) => {
+    setFormData({
+      name: product.name,
+      description: product.description || "",
+      price: product.price,
+      imageUrl: product.imageUrl || "",
+      imageAlt: product.imageAlt || "",
+      status: product.status,
+      category: product.category || "",
+      monk: product.monk || "หลวงปู่โต๊ะ",
+      temple: product.temple || "วัดประดู่ฉิมพลี",
+      year: product.year || "",
+      material: product.material || "",
+      condition: product.condition || "",
+    });
+    setEditingId(product.id);
+    setShowForm(true);
+  };
+
+  // Handle delete
+  const handleDelete = async (id: number) => {
+    if (confirm("ยืนยันการลบพระเครื่องนี้?")) {
+      try {
+        await deleteMutation.mutateAsync({ id });
+        toast.success("ลบพระเครื่องสำเร็จ");
+      } catch (error) {
+        toast.error("เกิดข้อผิดพลาด");
+      }
+    }
+  };
+
+  // Not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-cream-50 to-gold-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 border-gold-200">
+          <h1 className="text-3xl font-bold text-center mb-2 text-amber-900">
+            เอ็มหัตถ์เทพ
+          </h1>
+          <p className="text-center text-gold-600 mb-8">Admin Panel</p>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-amber-900 mb-2">
+                รหัสผ่าน
+              </label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="ใส่รหัสผ่าน"
+                className="border-gold-200 focus:border-gold-400"
+              />
+            </div>
+            <Button
+              type="submit"
+              className="w-full bg-gold-600 hover:bg-gold-700 text-white"
+            >
+              เข้าสู่ระบบ
+            </Button>
+          </form>
+        </Card>
+      </div>
+    );
+  }
+
+  // Authenticated - Admin Panel
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-cream-50 to-gold-50 p-4 md:p-8">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-amber-900">Admin Panel</h1>
+            <p className="text-gold-600 mt-1">จัดการพระเครื่อง</p>
+          </div>
           <Button
-            onClick={() => setShowForm(!showForm)}
-            className="bg-primary"
+            onClick={() => {
+              setShowForm(!showForm);
+              setEditingId(null);
+              setFormData({
+                name: "",
+                description: "",
+                price: "",
+                imageUrl: "",
+                imageAlt: "",
+                status: "available",
+                category: "",
+                monk: "หลวงปู่โต๊ะ",
+                temple: "วัดประดู่ฉิมพลี",
+                year: "",
+                material: "",
+                condition: "",
+              });
+            }}
+            className="bg-gold-600 hover:bg-gold-700 text-white gap-2"
           >
-            {showForm ? "ยกเลิก" : "เพิ่มพระเครื่องใหม่"}
+            <Plus size={20} />
+            เพิ่มพระเครื่อง
           </Button>
         </div>
 
         {/* Add/Edit Form */}
         {showForm && (
-          <div className="bg-card rounded-lg p-8 mb-8 border border-border">
-            <h3 className="text-2xl font-bold mb-6">
+          <Card className="p-6 mb-8 border-gold-200">
+            <h2 className="text-2xl font-bold text-amber-900 mb-6">
               {editingId ? "แก้ไขพระเครื่อง" : "เพิ่มพระเครื่องใหม่"}
-            </h3>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium mb-2">ชื่อพระเครื่อง *</label>
-                  <Input
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    placeholder="เช่น พระสมเด็จ"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">ราคา (บาท) *</label>
-                  <Input
-                    name="price"
-                    type="number"
-                    value={formData.price}
-                    onChange={handleInputChange}
-                    placeholder="เช่น 5000"
-                    required
-                  />
-                </div>
-              </div>
+            </h2>
 
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* ชื่อพระเครื่อง */}
               <div>
-                <label className="block text-sm font-medium mb-2">คำอธิบาย</label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  placeholder="คำอธิบายเกี่ยวกับพระเครื่อง"
-                  className="w-full px-3 py-2 border border-border rounded-md"
-                  rows={4}
+                <label className="block text-sm font-medium text-amber-900 mb-1">
+                  ชื่อพระเครื่อง *
+                </label>
+                <Input
+                  required
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  placeholder="เช่น พระสมเด็จ"
+                  className="border-gold-200"
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium mb-2">URL รูปภาพ</label>
-                  <Input
-                    name="imageUrl"
-                    value={formData.imageUrl}
-                    onChange={handleInputChange}
-                    placeholder="https://example.com/image.jpg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Alt Text รูปภาพ</label>
-                  <Input
-                    name="imageAlt"
-                    value={formData.imageAlt}
-                    onChange={handleInputChange}
-                    placeholder="คำอธิบายรูปภาพ"
-                  />
-                </div>
+              {/* ราคา */}
+              <div>
+                <label className="block text-sm font-medium text-amber-900 mb-1">
+                  ราคาเช่า (บาท) *
+                </label>
+                <Input
+                  required
+                  value={formData.price}
+                  onChange={(e) =>
+                    setFormData({ ...formData, price: e.target.value })
+                  }
+                  placeholder="เช่น 500"
+                  className="border-gold-200"
+                />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium mb-2">พระสงค์</label>
-                  <Input
-                    name="monk"
-                    value={formData.monk}
-                    onChange={handleInputChange}
-                    placeholder="เช่น หลวงปู่โต๊ะ"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">วัด</label>
-                  <Input
-                    name="temple"
-                    value={formData.temple}
-                    onChange={handleInputChange}
-                    placeholder="เช่น วัดประดู่ฉิมพลี"
-                  />
-                </div>
+              {/* หลวงปู่ */}
+              <div>
+                <label className="block text-sm font-medium text-amber-900 mb-1">
+                  หลวงปู่
+                </label>
+                <Input
+                  value={formData.monk}
+                  onChange={(e) =>
+                    setFormData({ ...formData, monk: e.target.value })
+                  }
+                  placeholder="หลวงปู่โต๊ะ"
+                  className="border-gold-200"
+                />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-sm font-medium mb-2">ปีที่สร้าง</label>
-                  <Input
-                    name="year"
-                    value={formData.year}
-                    onChange={handleInputChange}
-                    placeholder="เช่น 2540"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">วัสดุ</label>
-                  <Input
-                    name="material"
-                    value={formData.material}
-                    onChange={handleInputChange}
-                    placeholder="เช่น ทองแดง"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">สถานะ</label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-border rounded-md"
-                  >
-                    <option value="available">พร้อมเช่า</option>
-                    <option value="unavailable">ไม่พร้อม</option>
-                    <option value="sold">ขายแล้ว</option>
-                  </select>
-                </div>
+              {/* วัด */}
+              <div>
+                <label className="block text-sm font-medium text-amber-900 mb-1">
+                  วัด
+                </label>
+                <Input
+                  value={formData.temple}
+                  onChange={(e) =>
+                    setFormData({ ...formData, temple: e.target.value })
+                  }
+                  placeholder="วัดประดู่ฉิมพลี"
+                  className="border-gold-200"
+                />
               </div>
 
-              <div className="flex gap-4">
-                <Button type="submit" className="bg-primary">
-                  {editingId ? "อัปเดต" : "เพิ่ม"}
+              {/* ปีที่สร้าง */}
+              <div>
+                <label className="block text-sm font-medium text-amber-900 mb-1">
+                  ปีที่สร้าง
+                </label>
+                <Input
+                  value={formData.year}
+                  onChange={(e) =>
+                    setFormData({ ...formData, year: e.target.value })
+                  }
+                  placeholder="เช่น 2540"
+                  className="border-gold-200"
+                />
+              </div>
+
+              {/* วัสดุ */}
+              <div>
+                <label className="block text-sm font-medium text-amber-900 mb-1">
+                  วัสดุ
+                </label>
+                <Input
+                  value={formData.material}
+                  onChange={(e) =>
+                    setFormData({ ...formData, material: e.target.value })
+                  }
+                  placeholder="เช่น ทองเหลือง"
+                  className="border-gold-200"
+                />
+              </div>
+
+              {/* สถานะ */}
+              <div>
+                <label className="block text-sm font-medium text-amber-900 mb-1">
+                  สถานะ
+                </label>
+                <select
+                  value={formData.status}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      status: e.target.value as any,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gold-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gold-500"
+                >
+                  <option value="available">พร้อมเช่า</option>
+                  <option value="unavailable">ไม่พร้อมเช่า</option>
+                  <option value="sold">ขายแล้ว</option>
+                </select>
+              </div>
+
+              {/* หมวดหมู่ */}
+              <div>
+                <label className="block text-sm font-medium text-amber-900 mb-1">
+                  หมวดหมู่
+                </label>
+                <Input
+                  value={formData.category}
+                  onChange={(e) =>
+                    setFormData({ ...formData, category: e.target.value })
+                  }
+                  placeholder="เช่น พระสมเด็จ"
+                  className="border-gold-200"
+                />
+              </div>
+
+              {/* URL รูปภาพ */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-amber-900 mb-1">
+                  URL รูปภาพ
+                </label>
+                <Input
+                  value={formData.imageUrl}
+                  onChange={(e) =>
+                    setFormData({ ...formData, imageUrl: e.target.value })
+                  }
+                  placeholder="https://example.com/image.jpg"
+                  className="border-gold-200"
+                />
+              </div>
+
+              {/* Alt Text */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-amber-900 mb-1">
+                  Alt Text (สำหรับ SEO)
+                </label>
+                <Input
+                  value={formData.imageAlt}
+                  onChange={(e) =>
+                    setFormData({ ...formData, imageAlt: e.target.value })
+                  }
+                  placeholder="พระสมเด็จ - หลวงปู่โต๊ะ - วัดประดู่ฉิมพลี"
+                  className="border-gold-200"
+                />
+              </div>
+
+              {/* คำอธิบาย */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-amber-900 mb-1">
+                  คำอธิบาย
+                </label>
+                <Textarea
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  placeholder="ใส่คำอธิบายเกี่ยวกับพระเครื่อง"
+                  className="border-gold-200"
+                  rows={3}
+                />
+              </div>
+
+              {/* สภาพ */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-amber-900 mb-1">
+                  สภาพ
+                </label>
+                <Input
+                  value={formData.condition}
+                  onChange={(e) =>
+                    setFormData({ ...formData, condition: e.target.value })
+                  }
+                  placeholder="เช่น สภาพดี"
+                  className="border-gold-200"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="md:col-span-2 flex gap-3">
+                <Button
+                  type="submit"
+                  className="flex-1 bg-gold-600 hover:bg-gold-700 text-white"
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                >
+                  {editingId ? "บันทึกการแก้ไข" : "เพิ่มพระเครื่อง"}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
+                  className="flex-1 border-gold-200"
                   onClick={() => {
                     setShowForm(false);
                     setEditingId(null);
@@ -268,78 +409,63 @@ function AdminDashboard() {
                 </Button>
               </div>
             </form>
-          </div>
+          </Card>
         )}
 
         {/* Products List */}
         <div>
-          <h3 className="text-2xl font-bold mb-6">รายการพระเครื่อง</h3>
-          {isLoading ? (
-            <div className="flex justify-center items-center py-12">
-              <Loader2 className="animate-spin w-8 h-8 text-primary" />
-            </div>
-          ) : products && products.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-3 px-4 font-semibold">ชื่อ</th>
-                    <th className="text-left py-3 px-4 font-semibold">ราคา</th>
-                    <th className="text-left py-3 px-4 font-semibold">พระสงค์</th>
-                    <th className="text-left py-3 px-4 font-semibold">สถานะ</th>
-                    <th className="text-left py-3 px-4 font-semibold">การกระทำ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.map((product) => (
-                    <tr key={product.id} className="border-b border-border hover:bg-muted">
-                      <td className="py-3 px-4">{product.name}</td>
-                      <td className="py-3 px-4">฿{parseFloat(product.price).toLocaleString()}</td>
-                      <td className="py-3 px-4">{product.monk || "-"}</td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`text-sm px-3 py-1 rounded-full ${
-                            product.status === "available"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {product.status === "available" ? "พร้อมเช่า" : "ไม่พร้อม"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setEditingId(product.id);
-                            setShowForm(true);
-                            // TODO: Load product data into form
-                          }}
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => {
-                            // TODO: Implement delete logic
-                            if (confirm("คุณแน่ใจหรือว่าต้องการลบ?")) {
-                              console.log("Delete product:", product.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <h2 className="text-2xl font-bold text-amber-900 mb-4">
+            รายการพระเครื่อง ({products.length})
+          </h2>
+
+          {products.length === 0 ? (
+            <Card className="p-8 text-center border-gold-200">
+              <p className="text-gold-600">ยังไม่มีพระเครื่อง</p>
+            </Card>
           ) : (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">ยังไม่มีพระเครื่องในระบบ</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {products.map((product) => (
+                <Card
+                  key={product.id}
+                  className="p-4 border-gold-200 hover:shadow-lg transition-shadow"
+                >
+                  {product.imageUrl && (
+                    <img
+                      src={product.imageUrl}
+                      alt={product.imageAlt || product.name}
+                      className="w-full h-40 object-cover rounded-md mb-3"
+                    />
+                  )}
+
+                  <h3 className="font-bold text-amber-900 mb-1">
+                    {product.name}
+                  </h3>
+                  <p className="text-sm text-gold-600 mb-2">
+                    ราคา: {product.price} บาท
+                  </p>
+
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 border-gold-200 gap-1"
+                      onClick={() => handleEdit(product)}
+                    >
+                      <Edit2 size={16} />
+                      แก้ไข
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="flex-1 gap-1"
+                      onClick={() => handleDelete(product.id)}
+                    >
+                      <Trash2 size={16} />
+                      ลบ
+                    </Button>
+                  </div>
+                </Card>
+              ))}
             </div>
           )}
         </div>
